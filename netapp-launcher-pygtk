@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+
+# Python standard library imports
+import sys
+# Imports from external modules
+import dbus.service
+from dbus.mainloop.glib import DBusGMainLoop
+# Internal modules import
+from netapplauncher import Application
+
+APP_ID = 'de.mindwarp.netapp_launcher_pygtk'
+
+
+def _get_path(app_id):
+    return '/' + app_id.replace('.', '/')
+
+
+class MyDBUSService(dbus.service.Object):
+
+    def __init__(self, application):
+        self.application = application
+        bus_name = dbus.service.BusName(APP_ID, bus=dbus.SessionBus())
+        dbus.service.Object.__init__(self, bus_name, _get_path(APP_ID))
+
+    @dbus.service.method(APP_ID)
+    def activate(self):
+        self.application.show_main_window()
+
+
+def activate_if_already_running(app_id):
+    bus = dbus.SessionBus()
+    try:
+        existing_instance = bus.get_object(app_id, _get_path(app_id))
+        activate = existing_instance.get_dbus_method('activate', app_id)
+    except dbus.exceptions.DBusException:
+        return False
+    else:
+        activate()
+        return True
+    finally:
+        bus.close()
+
+
+if __name__ == '__main__':
+
+    activated = activate_if_already_running(APP_ID)
+    if activated:
+        sys.exit(0)
+
+    app = Application()
+
+    DBusGMainLoop(set_as_default=True)
+    service = MyDBUSService(app)
+    app.start()
